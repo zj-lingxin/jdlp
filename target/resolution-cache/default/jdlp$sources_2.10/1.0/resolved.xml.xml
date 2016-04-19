@@ -4,7 +4,7 @@
 		module="jdlp$sources_2.10"
 		revision="1.0"
 		status="integration"
-		publication="20160418093447"
+		publication="20160419090724"
 	/>
 	<configurations>
 		<conf name="default" visibility="public" description=""/>

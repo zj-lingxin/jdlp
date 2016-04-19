@@ -4,7 +4,7 @@
 		module="jdlp$sbt_2.10"
 		revision="1.0"
 		status="integration"
-		publication="20160418093446"
+		publication="20160419090722"
 	/>
 	<configurations>
 		<conf name="default" visibility="public"/>
