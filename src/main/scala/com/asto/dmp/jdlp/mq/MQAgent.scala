@@ -4,6 +4,8 @@ import com.asto.dmp.jdlp.base.Props
 
 import com.rabbitmq.client.{Channel, Connection, ConnectionFactory, MessageProperties}
 import org.apache.spark.Logging
+import org.json.JSONObject
+
 
 object MQAgent extends Logging {
   private val connection: Connection = getConnection
@@ -18,8 +20,8 @@ object MQAgent extends Logging {
     connectionFactory.newConnection
   }
 
-  def send(message: String) {
-    val queueName = Props.get("queue_name_online")
+  def send(message:String) {
+    val queueName = Props.get("jd_file_queue_name")
     //以下四行代码的意思我表示不是很清楚，照搬过来的
     channel.queueDeclare(queueName, true, false, false, null)
     channel.exchangeDeclare(queueName, "direct", true)

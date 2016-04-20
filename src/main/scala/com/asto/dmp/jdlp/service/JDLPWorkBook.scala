@@ -1,13 +1,15 @@
 package com.asto.dmp.jdlp.service
 
 import java.io.FileOutputStream
-import com.asto.dmp.jdlp.base.Props
+import com.asto.dmp.jdlp.base.Constants
+import com.asto.dmp.jdlp.cos.FileUploader
+import com.asto.dmp.jdlp.util.Utils
 import org.apache.poi.hssf.usermodel._
 import org.apache.poi.ss.usermodel._
 import org.apache.poi.ss.util.CellRangeAddress
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
+import org.apache.spark.Logging
 
-class JDLPWorkBook {
+class JDLPWorkBook extends Logging {
   private val wb: Workbook = new HSSFWorkbook()
   //private val createHelper: CreationHelper = wb.getCreationHelper
   private val sheet: Sheet = wb.createSheet()
@@ -36,7 +38,7 @@ class JDLPWorkBook {
     defaultStyle
   }
 
-  private def firstRow = {
+  private def firstRow() = {
     //第一行
     val cellRange = new CellRangeAddress(0, 0, 0, maxColumnIndex)
     //在sheet里增加合并单元格
@@ -90,14 +92,8 @@ class JDLPWorkBook {
     }
   }
 
-  def save = {
-    // Save
-    var filename: String = Props.get("save_path")
-    if (wb.isInstanceOf[XSSFWorkbook]) {
-      filename = filename + "x"
-    }
-
-    val out: FileOutputStream = new FileOutputStream(filename)
+  def saveToLocal(localPath:String) = {
+    val out: FileOutputStream = new FileOutputStream(localPath)
     wb.write(out)
     out.close()
   }
@@ -108,9 +104,43 @@ class JDLPWorkBook {
                   saleInfoAYear: Array[Array[String]],
                   avgSaleInfoAYear: Array[String]
                    ) = {
+
+    //近12个月销售额均值
+    val avgSaleOf12M = avgSaleInfoAYear(1).toDouble
+    logInfo("近12个月销售额均值:" + avgSaleOf12M )
+    //近3个月付费流量占比
+    val avgFlowOf3M = avgSaleInfo3M(6).replace("%", "").toDouble * 0.01
+    logInfo("近3个月付费流量占比:" + avgFlowOf3M )
+    //近3个月ROI均值
+    val avgRoiOf3M = avgSaleInfo3M(7)
+    logInfo("近3个月ROI均值:" + avgRoiOf3M )
+    //近3个月top3占比均值
+    val avgTop3Of3M = avgSaleInfo3M(8).replace("%", "").toDouble * 0.01
+    logInfo("近3个月top3占比均值:" + avgTop3Of3M)
+    //dsr三项与行业对比均值
+    val avgDsrComp = (dsr(1).toDouble + dsr(3).toDouble + dsr(5).toDouble) / 3 * 0.01
+    logInfo("dsr三项与行业对比均值:" + avgDsrComp)
+    //上月退款率
+    val refundRateD = refundRate.toDouble * 0.01
+    logInfo("退款率：" + refundRateD)
+    //计算出得分
+    val oldScore: Double = 0.3 * Math.min(150, Math.max(0, 30 + 50 * Math.log(avgSaleOf12M / 100000))) +
+      0.35 * Math.min(150, Math.max(0, 170 - 280 * avgFlowOf3M)) +
+      0.05 * Math.min(150, Math.max(0, 100)) +
+      0.15 * Math.min(150, Math.max(0, -220 * avgTop3Of3M + 200)) +
+      0.15 * Math.min(150, Math.max(0,-220 * Math.pow(avgDsrComp, 2) + 350 * avgDsrComp + 35))
+
+    val newScore = Utils.retainDecimal(-0.004 * Math.pow(oldScore, 2) + 1.6 * oldScore,0).toInt
+
+    //授信额度
+    val tempAmount = Math.min(avgSaleOf12M * newScore * (1 - refundRateD) / 100, 500000).toInt
+    //以“万”为整。如34000算40000
+    val creditAmount = if(tempAmount % 10000 == 0) tempAmount else (tempAmount / 10000 + 1) * 10000
+    logInfo("授信额度：" + creditAmount)
+
     firstRow
     cellsMergeForRow(1, Array(0, 3, 5, 7), Array("借款人名称", "", "法人名称", ""), Array("bold", "normal", "bold", "normal"))
-    cellsMergeForRow(2, Array(0, 3, 5, 7), Array("店铺名", "", "网店主营业务", ""), Array("bold", "normal", "bold", "normal"))
+    cellsMergeForRow(2, Array(0, 3, 5, 7), Array("店铺名", Constants.JD_NAME, "网店主营业务", ""), Array("bold", "normal", "bold", "normal"))
     cellsMergeForRow(3, Array(0, 3, 5, 7), Array("成立时间", "", "店铺等级", ""), Array("bold", "normal", "bold", "normal"))
     cellsMergeForRow(4, Array(0, 3, 5, 7), Array("DSR评分", "描述相符得分：", "服务态度得分：", "物流速度得分："), Array("bold", "bold", "bold", "bold"))
 
@@ -125,21 +155,15 @@ class JDLPWorkBook {
       commonRow(10 + i, saleInfo3M(i), Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
     }
     commonRow(13, avgSaleInfo3M, Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
-    commonRow(14, Array("各项得分", "", "", "", "", "", "", "", ""), Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
-
-    val creditAmount = avgSaleInfo3M(1) // 暂时取近三个月均值
-    cellsMergeForRow(15, Array(0, 1, 5, 7), Array("总得分", "", "参考授信额度", creditAmount ), Array("bold", "normal", "bold", "normal"))
-    cellsMergeForRow(16, Array(0), Array("最近12个月销售分析"), Array("bold"))
-    commonRow(17, Array("时间", "销售额", "浏览量", "访客数", "转化率", "客单价", "付费流量占比", "推广费用ROI", "商品结构"), Array("bold", "bold", "bold", "bold", "bold", "bold", "bold", "bold", "bold"))
+    cellsMergeForRow(14, Array(0, 1, 5, 7), Array("总得分", newScore.toString, "参考授信额度", creditAmount.toString), Array("bold", "normal", "bold", "normal"))
+    cellsMergeForRow(15, Array(0), Array("最近12个月销售分析"), Array("bold"))
+    commonRow(16, Array("时间", "销售额", "浏览量", "访客数", "转化率", "客单价", "付费流量占比", "推广费用ROI", "商品结构"), Array("bold", "bold", "bold", "bold", "bold", "bold", "bold", "bold", "bold"))
 
     saleInfoAYear.indices.foreach { i =>
-      commonRow(18 + i, saleInfoAYear(i), Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
+      commonRow(17 + i, saleInfoAYear(i), Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
     }
 
-    commonRow(30, avgSaleInfoAYear, Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
-    commonRow(31, Array("各项评分", "", "", "", "", "", "", "", ""), Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
-
+    commonRow(29, avgSaleInfoAYear, Array("bold", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal"))
   }
 }
-
 
