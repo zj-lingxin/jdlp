@@ -4,12 +4,13 @@ import com.asto.dmp.jdlp.base.{Constants, Props, CsvDF}
 import com.asto.dmp.jdlp.cos.FileUploader
 import com.asto.dmp.jdlp.mq.MQAgent
 import com.asto.dmp.jdlp.service.{JDLPWorkBook, Service}
-import com.asto.dmp.jdlp.util.Utils
+import com.asto.dmp.jdlp.util.{DateUtils, Utils}
 import org.json.JSONObject
+import com.fasterxml.jackson.annotation.ObjectIdGenerators.UUIDGenerator
 
 class MainService extends Service {
   private val filePath = (fileName: String) => {
-    s"file://${Constants.PATH}/$fileName"
+    s"file://${Constants.INPUT_FILE_PATH}/$fileName"
   }
 
   val dynamic = CsvDF.load(filePath(Props.get("dynamic_file")))
@@ -24,7 +25,6 @@ class MainService extends Service {
     }
     dynamic.select("商品描述满意度", "行业相比【描】", "服务态度满意度", "行业相比【服】", "物流速度满意度", "行业相比【物】")
       .map(a => Array(Utils.retainDecimal(a(0).toString.toDouble).toString, toPercent(a(1)), Utils.retainDecimal(a(2).toString.toDouble).toString, toPercent(a(3)), Utils.retainDecimal(a(4).toString.toDouble).toString, toPercent(a(5)))).collect()(0)
-
   }
 
   /**
@@ -84,6 +84,78 @@ class MainService extends Service {
     ))
   }
 
+  def uploadFile(fileName: String, localPath: String) = {
+    var fileUrl = ""
+    var times = 1
+    //有时上传会失败，所以失败时多尝试几次
+    do {
+      //将文件上传到cos
+      logInfo(s"尝试将文件上传到cos：第${times}次")
+      if (times != 1) Thread.sleep(20000)
+      fileUrl = new FileUploader().upload(fileName, localPath)
+      times = times + 1
+    } while (fileUrl == "" && times < 20)
+    fileUrl
+  }
+
+  def sendFileMsgToMQ(fileUrl: String) = {
+    val jsonObject = new JSONObject().put("jdid", Constants.ShopInfo.JD_NAME).put("fileUrl", fileUrl)
+    logInfo("向MQ发送消息：" + jsonObject.toString())
+    MQAgent.send(jsonObject.toString, Props.get("jd_file_queue_name"))
+  }
+
+  def sendScoreAndCreditToMQ(score: String, credit: String) = {
+    def getSubJson(quotaCode: String, quotaValue: String): JSONObject = {
+      new JSONObject().put("indexFlag", "1")
+        .put("quotaCode", quotaCode)
+        .put("quotaValue", quotaValue)
+        .put("targetTime", DateUtils.getStrDate("yyyyMMdd"))
+    }
+    val jsonObject = new JSONObject().put("jdid", Constants.ShopInfo.JD_NAME).put("quotaItemList", Array(
+      getSubJson("M_PROP_CREDIT_SCORE", score),
+      getSubJson("M_PROP_CREDIT_LIMIT_AMOUNT", credit)
+    ))
+    logInfo("向MQ发送消息：" + jsonObject.toString())
+    MQAgent.send(jsonObject.toString(), Props.get("jd_credit_grade_queue_name"))
+  }
+
+  def getScoreAndCreditAmount(dsr: Array[String], refundRate: String, avgSaleInfo3M: Array[String], avgSaleInfoAYear: Array[String]) = {
+    //近12个月销售额均值
+    val avgSaleOf12M = avgSaleInfoAYear(1).toDouble
+    logInfo("近12个月销售额均值:" + avgSaleOf12M)
+    //近3个月付费流量占比
+    val avgFlowOf3M = avgSaleInfo3M(6).replace("%", "").toDouble * 0.01
+    logInfo("近3个月付费流量占比:" + avgFlowOf3M)
+    //近3个月ROI均值
+    val avgRoiOf3M = avgSaleInfo3M(7)
+    logInfo("近3个月ROI均值:" + avgRoiOf3M)
+    //近3个月top3占比均值
+    val avgTop3Of3M = avgSaleInfo3M(8).replace("%", "").toDouble * 0.01
+    logInfo("近3个月top3占比均值:" + avgTop3Of3M)
+    //dsr三项与行业对比均值
+    val avgDsrComp = (dsr(1).toDouble + dsr(3).toDouble + dsr(5).toDouble) / 3 * 0.01
+    logInfo("dsr三项与行业对比均值:" + avgDsrComp)
+    //上月退款率
+    val refundRateD = refundRate.toDouble * 0.01
+    logInfo("退款率：" + refundRateD)
+
+    //计算出得分
+    val oldScore: Double = 0.3 * Math.min(150, Math.max(0, 30 + 50 * Math.log(avgSaleOf12M / 100000))) +
+      0.35 * Math.min(150, Math.max(0, 170 - 280 * avgFlowOf3M)) +
+      0.05 * Math.min(150, Math.max(0, 100)) +
+      0.15 * Math.min(150, Math.max(0, -220 * avgTop3Of3M + 200)) +
+      0.15 * Math.min(150, Math.max(0, -220 * Math.pow(avgDsrComp, 2) + 350 * avgDsrComp + 35))
+    val newScore = Utils.retainDecimal(-0.004 * Math.pow(oldScore, 2) + 1.6 * oldScore, 0).toInt
+
+    //授信额度
+    val tempAmount = Math.min(avgSaleOf12M * newScore * (1 - refundRateD) / 100, 500000).toInt
+    //以“万”为整。如34000算40000
+    val creditAmount = if (tempAmount % 10000 == 0) tempAmount else (tempAmount / 10000 + 1) * 10000
+    logInfo("授信额度：" + creditAmount)
+
+    (newScore.toString, creditAmount.toString)
+  }
+
   override private[service] def runServices(): Unit = {
 
     val workBook = new JDLPWorkBook
@@ -94,24 +166,22 @@ class MainService extends Service {
     val saleInfo3M = getSaleInfoOfLast3M
     val avgSaleInfo3M = avgSaleInfo(saleInfo3M)
 
-    workBook.setContents(dsr, refundRate, toStringArray(saleInfo3M), avgSaleInfo3M, toStringArray(saleInfoAYear), avgSaleInfoAYear)
+    val (score,creditAmount) = getScoreAndCreditAmount(dsr, refundRate, avgSaleInfo3M, avgSaleInfoAYear)
 
-    val fileName = s"${Constants.JD_NAME}.xls"
-    val localPath = s"${Constants.PATH}/$fileName"
+    workBook.setContents(dsr, refundRate, toStringArray(saleInfo3M), avgSaleInfo3M, toStringArray(saleInfoAYear), avgSaleInfoAYear,score,creditAmount)
+
+    val fileName = new UUIDGenerator().generateId() + ".xls"
+    logInfo(s"文件名:$fileName")
+
+    val localPath = s"${Constants.INPUT_FILE_PATH}/$fileName"
+    logInfo(s"本地路径:$localPath")
     //将文件保存到本地
     workBook.saveToLocal(localPath)
-    var fileUrl = ""
-    var times = 1
-    do {
-      //将文件上传到cos
-      logInfo(s"尝试将文件上传到cos：第${times}次")
-      if(times!=1) Thread.sleep(20000)
-      fileUrl = new FileUploader().upload(fileName, localPath)
-      times = times + 1
-    } while (fileUrl == "" && times < 20)
-    //发送MQ消息
-    val jsonObject = new JSONObject().put("jdName", Constants.JD_NAME).put("fileUrl", fileUrl).put("success", if (fileUrl == "") false else true)
-    logInfo("向MQ发送消息：" + jsonObject.toString())
-    MQAgent.send(jsonObject.toString())
+
+    //上传文件到cos
+    val fileUrl = uploadFile(fileName, localPath)
+
+    sendFileMsgToMQ(fileUrl)
+    sendScoreAndCreditToMQ(score,creditAmount)
   }
 }

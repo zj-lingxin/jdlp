@@ -20,8 +20,8 @@ object MQAgent extends Logging {
     connectionFactory.newConnection
   }
 
-  def send(message:String) {
-    val queueName = Props.get("jd_file_queue_name")
+  def send(message: String, queueName: String) {
+    // val queueName = Props.get("jd_file_queue_name")
     //以下四行代码的意思我表示不是很清楚，照搬过来的
     channel.queueDeclare(queueName, true, false, false, null)
     channel.exchangeDeclare(queueName, "direct", true)

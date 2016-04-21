@@ -14,7 +14,7 @@ class FileUploader extends Logging {
   val dir = Props.get("cos_dir")
   val cos: CosCloud = new CosCloud(appId, secretId, secretKey)
 
-  def tryUpload(fileName: String, localPath: String) = {
+  def deleteAndUpload(fileName: String, localPath: String) = {
     val remotePath = dir + fileName
     logInfo(s"remotePath:$remotePath")
     logInfo(s"localPath:$localPath")
@@ -27,11 +27,11 @@ class FileUploader extends Logging {
    */
   def upload(fileName: String, localPath: String): String = {
     var result = ""
-    result = tryUpload(fileName: String, localPath: String)
+    result = deleteAndUpload(fileName: String, localPath: String)
     if (new JSONObject(result).getInt("code") != 0)
       ""
     else
-      new JSONObject(result).getJSONObject("data").getString("access_url")
+      new JSONObject(result).getJSONObject("data").getString("resource_path")
   }
 
 }
