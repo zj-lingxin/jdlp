@@ -652,8 +652,8 @@
 [debug] 	[NOT REQUIRED] org.scala-sbt#sbt;0.13.8!sbt.jar
 [debug] 	[NOT REQUIRED] org.scala-lang#scala-library;2.10.4!scala-library.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#main;0.13.8!main.jar
-[debug] 	[NOT REQUIRED] org.scala-sbt#compiler-interface;0.13.8!compiler-interface-src.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#compiler-interface;0.13.8!compiler-interface-bin.jar
+[debug] 	[NOT REQUIRED] org.scala-sbt#compiler-interface;0.13.8!compiler-interface-src.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#precompiled-2_8_2;0.13.8!compiler-interface-bin.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#precompiled-2_9_2;0.13.8!compiler-interface-bin.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#precompiled-2_9_3;0.13.8!compiler-interface-bin.jar
@@ -703,9 +703,9 @@
 [debug] 	[NOT REQUIRED] org.scala-sbt#test-agent;0.13.8!test-agent.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#test-interface;1.0!test-interface.jar
 [debug] 	[NOT REQUIRED] org.scala-sbt#apply-macro;0.13.8!apply-macro.jar
-[debug] :: resolution report :: resolve 1170ms :: artifacts dl 46ms
+[debug] :: resolution report :: resolve 3623ms :: artifacts dl 102ms
 [debug] 	report for default#jdlp$sbt_2.10;1.0 default produced in /data/work/asto-work/jdlp/target/resolution-cache/reports/default-jdlp$sbt_2.10-default.xml
-[debug] 	resolve done (1170ms resolve - 46ms download)
+[debug] 	resolve done (3623ms resolve - 102ms download)
 [debug] Using inline dependencies specified in Scala.
 [debug] :: resolving dependencies :: default#jdlp$sources_2.10;1.0
 [debug] 	confs: [default]
@@ -1069,6 +1069,6 @@
 [debug] 	[NOT REQUIRED] org.scala-sbt#precompiled-2_8_2;0.13.8!precompiled-2_8_2.jar(src)
 [debug] 	[NOT REQUIRED] org.scala-sbt#precompiled-2_9_2;0.13.8!precompiled-2_9_2.jar(src)
 [debug] 	[NOT REQUIRED] org.scala-sbt#precompiled-2_9_3;0.13.8!precompiled-2_9_3.jar(src)
-[debug] :: resolution report :: resolve 309ms :: artifacts dl 42ms
+[debug] :: resolution report :: resolve 619ms :: artifacts dl 79ms
 [debug] 	report for default#jdlp$sources_2.10;1.0 default produced in /data/work/asto-work/jdlp/target/resolution-cache/reports/default-jdlp$sources_2.10-default.xml
-[debug] 	resolve done (309ms resolve - 42ms download)
+[debug] 	resolve done (619ms resolve - 79ms download)

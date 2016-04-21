@@ -24,7 +24,7 @@ object Main extends Logging {
       logInfo("args(0):" + args(0))
       logInfo("args(1):" + args(1))
       logInfo("args(2):" + args(2))
-      val info = args(2).split(";")
+      val info = args(2).split(",")
 
       Constants.INPUT_FILE_PATH = args(1)
       Constants.ShopInfo.JD_NAME = args(0)
