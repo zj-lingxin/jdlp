@@ -2,6 +2,7 @@ package com.asto.dmp.jdlp.util
 
 import org.apache.spark.Logging
 import org.apache.spark.rdd.{CoGroupedRDD, RDD}
+import scala.math.BigDecimal.RoundingMode.RoundingMode
 import scala.reflect.ClassTag
 
 class RichPairRDD[K, V](self: RDD[(K, V)])
@@ -56,7 +57,7 @@ object RichPairRDD {
   implicit def toRichPairRDD[K, V](self: RDD[(K, V)])(implicit kt: ClassTag[K], vt: ClassTag[V]) = new RichPairRDD[K, V](self)
 }
 
-object Utils extends Serializable{
+object Utils extends Serializable {
   def firstItrAsDouble(iter: Iterable[Double], defaultValue: Any = None) = {
     if (iter.isEmpty) {
       defaultValue
@@ -64,6 +65,7 @@ object Utils extends Serializable{
       retainDecimal(iter.head, 2)
     }
   }
+
   def firstItrAsInt(iter: Iterable[Int], defaultValue: Any = None) = {
     if (iter.isEmpty) {
       defaultValue
@@ -98,6 +100,10 @@ object Utils extends Serializable{
    */
   def retainDecimal(number: Double, bits: Int = 2): Double = {
     BigDecimal(number).setScale(bits, BigDecimal.RoundingMode.HALF_UP).doubleValue()
+  }
+
+  def retainDecimalDown(number: Double, bits: Int = 2): Double = {
+    BigDecimal(number).setScale(bits, BigDecimal.RoundingMode.DOWN).doubleValue()
   }
 
 }

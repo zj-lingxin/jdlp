@@ -18,21 +18,22 @@ object Main extends Logging {
       logError("请传入jdName,filePath,其他属性")
       sys.exit(1)
     } else {
-      // arg(0) "jdName":"1元宝"
-      // arg(1) "path":"/jdlp/xxtest.xls"
-      // arg(2) "shopName":"店铺名称","userName":"借款人名称","shopLevel":"店铺等级","companyName":"法人名称","majorBusiness":"网店主营业务"
       logInfo("args(0):" + args(0))
       logInfo("args(1):" + args(1))
       logInfo("args(2):" + args(2))
-      val info = args(2).split(",")
 
+      val infoMap = args(2).split(",").map{ t =>
+        val a = t.split(":")
+        if(a.length == 1) (a(0),"") else (a(0),a(1))
+      }.toMap
+      println(infoMap)
       Constants.INPUT_FILE_PATH = args(1)
       Constants.ShopInfo.JD_NAME = args(0)
-      Constants.ShopInfo.SHOP_NAME = info(0)
-      Constants.ShopInfo.USER_NAME = info(1)
-      Constants.ShopInfo.SHOP_LEVEL = info(2)
-      Constants.ShopInfo.COMPANY_NAME = info(3)
-      Constants.ShopInfo.MAJOR_BUSINESS = info(4)
+      Constants.ShopInfo.SHOP_NAME = infoMap("shopName")
+      Constants.ShopInfo.USER_NAME = infoMap("userName")
+      Constants.ShopInfo.SHOP_LEVEL = infoMap("shopLevel")
+      Constants.ShopInfo.COMPANY_NAME = infoMap("companyName")
+      Constants.ShopInfo.MAJOR_BUSINESS = infoMap("majorBusiness")
     }
   }
 

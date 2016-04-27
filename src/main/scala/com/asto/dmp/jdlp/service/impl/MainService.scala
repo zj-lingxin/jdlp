@@ -21,10 +21,10 @@ class MainService extends Service {
 
   def getDSR = {
     val toPercent = (value: Any) => {
-      Utils.retainDecimal(value.toString.toDouble * 100).toString
+      Utils.retainDecimalDown(value.toString.toDouble * 100).toString
     }
     dynamic.select("商品描述满意度", "行业相比【描】", "服务态度满意度", "行业相比【服】", "物流速度满意度", "行业相比【物】")
-      .map(a => Array(Utils.retainDecimal(a(0).toString.toDouble).toString, toPercent(a(1)), Utils.retainDecimal(a(2).toString.toDouble).toString, toPercent(a(3)), Utils.retainDecimal(a(4).toString.toDouble).toString, toPercent(a(5)))).collect()(0)
+      .map(a => Array(Utils.retainDecimalDown(a(0).toString.toDouble).toString, toPercent(a(1)), Utils.retainDecimalDown(a(2).toString.toDouble).toString, toPercent(a(3)), Utils.retainDecimalDown(a(4).toString.toDouble).toString, toPercent(a(5)))).collect()(0)
   }
 
   /**
@@ -51,8 +51,12 @@ class MainService extends Service {
   }
 
   def avgSaleInfo(saleInfo: Array[(String, Int, Int, Int, Double, Double, Double, String, Double)]): Array[String] = {
-    val num = saleInfo.length
+    val num = saleInfo.length.toDouble
     val sum = saleInfo.reduce((a, b) => ("均值", a._2 + b._2, a._3 + b._3, a._4 + b._4, a._5 + b._5, a._6 + b._6, a._7 + b._7, a._8 + b._8, a._9 + b._9))
+ /*   println(sum._3)
+    println(sum._3 / num)
+    println(Utils.retainDecimal(sum._3 / num, 0))
+    println(Utils.retainDecimal(sum._3 / num, 0).toInt.toString)*/
     Array(
       "均值",
       Utils.retainDecimal(sum._2 / num, 0).toInt.toString,
