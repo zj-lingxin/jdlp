@@ -21,7 +21,8 @@ class MainService extends Service {
 
   def getDSR = {
     val toPercent = (value: Any) => {
-      Utils.retainDecimalDown(value.toString.toDouble * 100).toString
+      if (value.toString == "") ""
+      else Utils.retainDecimalDown(value.toString.toDouble).toString
     }
     dynamic.select("商品描述满意度", "行业相比【描】", "服务态度满意度", "行业相比【服】", "物流速度满意度", "行业相比【物】")
       .map(a => Array(Utils.retainDecimalDown(a(0).toString.toDouble).toString, toPercent(a(1)), Utils.retainDecimalDown(a(2).toString.toDouble).toString, toPercent(a(3)), Utils.retainDecimalDown(a(4).toString.toDouble).toString, toPercent(a(5)))).collect()(0)
@@ -42,7 +43,7 @@ class MainService extends Service {
     val flowRate = traffic.select("当前月", "流量占比").map(a => (a(0).toString, a(1).toString.toDouble))
     val top3Amount = detail.select("当前月", "下单金额").map(a => (a(0).toString, a(1).toString.toDouble)).reduceByKey(_ + _)
     info.cogroup(flowRate, top3Amount).map(t => (t._1.toString, t._2._1.head, t._2._2.head, t._2._3.head))
-      .map(t => (t._1, t._2._1.toInt, t._2._2, t._2._3, Utils.retainDecimal(t._2._4 * 100), Utils.retainDecimal(t._2._5), Utils.retainDecimal(t._3 * 100), "", Utils.retainDecimal(t._4 / t._2._1 * 100)))
+      .map(t => (t._1, t._2._1.toInt, t._2._2, t._2._3, Utils.retainDecimal(t._2._4 * 100), Utils.retainDecimal(t._2._5), Utils.retainDecimal(t._3 * 100), "", Utils.retainDecimal(if (t._2._1 == 0) 0 else (t._4 / t._2._1 * 100))))
       .sortBy(_._1, ascending = false).persist()
   }
 
@@ -53,10 +54,6 @@ class MainService extends Service {
   def avgSaleInfo(saleInfo: Array[(String, Int, Int, Int, Double, Double, Double, String, Double)]): Array[String] = {
     val num = saleInfo.length.toDouble
     val sum = saleInfo.reduce((a, b) => ("均值", a._2 + b._2, a._3 + b._3, a._4 + b._4, a._5 + b._5, a._6 + b._6, a._7 + b._7, a._8 + b._8, a._9 + b._9))
- /*   println(sum._3)
-    println(sum._3 / num)
-    println(Utils.retainDecimal(sum._3 / num, 0))
-    println(Utils.retainDecimal(sum._3 / num, 0).toInt.toString)*/
     Array(
       "均值",
       Utils.retainDecimal(sum._2 / num, 0).toInt.toString,
@@ -104,7 +101,7 @@ class MainService extends Service {
 
   def sendFileMsgToMQ(fileUrl: String) = {
     val jsonObject = new JSONObject().put("jdid", Constants.ShopInfo.JD_NAME).put("fileUrl", fileUrl)
-    logInfo("向MQ发送消息：" + jsonObject.toString())
+    logInfo("向MQ发送消息：" + jsonObject.toString)
     MQAgent.send(jsonObject.toString, Props.get("jd_file_queue_name"))
   }
 
@@ -119,8 +116,8 @@ class MainService extends Service {
       getSubJson("M_PROP_CREDIT_SCORE", score),
       getSubJson("M_PROP_CREDIT_LIMIT_AMOUNT", credit)
     ))
-    logInfo("向MQ发送消息：" + jsonObject.toString())
-    MQAgent.send(jsonObject.toString(), Props.get("jd_credit_grade_queue_name"))
+    logInfo("向MQ发送消息：" + jsonObject.toString)
+    MQAgent.send(jsonObject.toString, Props.get("jd_credit_grade_queue_name"))
   }
 
   def getScoreAndCreditAmount(dsr: Array[String], refundRate: String, avgSaleInfo3M: Array[String], avgSaleInfoAYear: Array[String]) = {
@@ -136,15 +133,16 @@ class MainService extends Service {
     //近3个月top3占比均值
     val avgTop3Of3M = avgSaleInfo3M(8).replace("%", "").toDouble * 0.01
     logInfo("近3个月top3占比均值:" + avgTop3Of3M)
+    def dsrToDouble(dsr: String) = if (dsr == "") 0D else dsr.toDouble
     //dsr三项与行业对比均值
-    val avgDsrComp = (dsr(1).toDouble + dsr(3).toDouble + dsr(5).toDouble) / 3 * 0.01
+    val avgDsrComp = (dsrToDouble(dsr(1)) + dsrToDouble(dsr(3)) + dsrToDouble(dsr(5))) / 3 * 0.01
     logInfo("dsr三项与行业对比均值:" + avgDsrComp)
     //上月退款率
     val refundRateD = refundRate.toDouble * 0.01
     logInfo("退款率：" + refundRateD)
 
     //计算出得分
-    val oldScore: Double = 0.3 * Math.min(150, Math.max(0, 30 + 50 * Math.log(avgSaleOf12M / 100000))) +
+    val oldScore: Double = 0.3 * Math.min(150, Math.max(0, 30 + 50 * Math.log(avgSaleOf12M / 100000D))) +
       0.35 * Math.min(150, Math.max(0, 170 - 280 * avgFlowOf3M)) +
       0.05 * Math.min(150, Math.max(0, 100)) +
       0.15 * Math.min(150, Math.max(0, -220 * avgTop3Of3M + 200)) +
@@ -170,9 +168,9 @@ class MainService extends Service {
     val saleInfo3M = getSaleInfoOfLast3M
     val avgSaleInfo3M = avgSaleInfo(saleInfo3M)
 
-    val (score,creditAmount) = getScoreAndCreditAmount(dsr, refundRate, avgSaleInfo3M, avgSaleInfoAYear)
+    val (score, creditAmount) = getScoreAndCreditAmount(dsr, refundRate, avgSaleInfo3M, avgSaleInfoAYear)
 
-    workBook.setContents(dsr, refundRate, toStringArray(saleInfo3M), avgSaleInfo3M, toStringArray(saleInfoAYear), avgSaleInfoAYear,score,creditAmount)
+    workBook.setContents(dsr, refundRate, toStringArray(saleInfo3M), avgSaleInfo3M, toStringArray(saleInfoAYear), avgSaleInfoAYear, score, creditAmount)
 
     val fileName = new UUIDGenerator().generateId() + ".xls"
     logInfo(s"文件名:$fileName")
@@ -186,6 +184,6 @@ class MainService extends Service {
     val fileUrl = uploadFile(fileName, localPath)
 
     sendFileMsgToMQ(fileUrl)
-    sendScoreAndCreditToMQ(score,creditAmount)
+    sendScoreAndCreditToMQ(score, creditAmount)
   }
 }

@@ -103,17 +103,17 @@ class JDLPWorkBook extends Logging {
                   avgSaleInfo3M: Array[String],
                   saleInfoAYear: Array[Array[String]],
                   avgSaleInfoAYear: Array[String],
-                  score:String,
-                  creditAmount:String
+                  score: String,
+                  creditAmount: String
                    ) = {
     firstRow
     cellsMergeForRow(1, Array(0, 3, 5, 7), Array("借款人名称", Constants.ShopInfo.USER_NAME, "法人名称", Constants.ShopInfo.COMPANY_NAME), Array("bold", "normal", "bold", "normal"))
     cellsMergeForRow(2, Array(0, 3, 5, 7), Array("店铺名", Constants.ShopInfo.SHOP_NAME, "网店主营业务", Constants.ShopInfo.MAJOR_BUSINESS), Array("bold", "normal", "bold", "normal"))
     cellsMergeForRow(3, Array(0, 3, 5, 7), Array("成立时间", "", "店铺等级", Constants.ShopInfo.SHOP_LEVEL), Array("bold", "normal", "bold", "normal"))
     cellsMergeForRow(4, Array(0, 3, 5, 7), Array("DSR评分", "描述相符得分：", "服务态度得分：", "物流速度得分："), Array("bold", "bold", "bold", "bold"))
-
     cellsMergeForRow(5, Array(0, 3, 5, 7), Array("店铺DSR评分", dsr(0), dsr(2), dsr(4)), Array("bold", "normal", "normal", "normal"))
-    cellsMergeForRow(6, Array(0, 3, 5, 7), Array("与同行业对比(高于)", dsr(1) + "%", dsr(3) + "%", dsr(5) + "%"), Array("bold", "normal", "normal", "normal"))
+    def dsrOutput(dsr: String) = if (dsr == "") "" else dsr + "%"
+    cellsMergeForRow(6, Array(0, 3, 5, 7), Array("与同行业对比(高于)", dsrOutput(dsr(1)), dsrOutput(dsr(3)), dsrOutput(dsr(5))), Array("bold", "normal", "normal", "normal"))
     cellsMergeForRow(7, Array(0, 3), Array("退款率", refundRate + "%"), Array("bold", "normal"))
 
     cellsMergeForRow(8, Array(0), Array("最近3个月销售分析"), Array("bold"))
